@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Instagram Pro with Music & Persistent Storage</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <style>
+    html, body { height: 100%; margin: 0; background: #000; color: #fff; font-family: -apple-system, sans-serif; overflow: hidden; }
+    .hide-scrollbar::-webkit-scrollbar { display: none; }
+    .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    .glass-nav { background: rgba(10, 10, 12, 0.95); backdrop-filter: blur(20px); border-top: 1px solid rgba(255,255,255,0.1); }
+    .glass-header { background: rgba(10, 10, 12, 0.9); backdrop-filter: blur(20px); border-bottom: 1px solid rgba(255,255,255,0.08); }
+    .snap-y-mandatory { scroll-snap-type: y mandatory; }
+    .snap-start { scroll-snap-align: start; }
+  </style>
+</head>
+<body class="select-none" onload="initApp()">
+
+  <div class="max-w-md mx-auto h-full flex flex-col bg-black text-white relative border-x border-zinc-900 shadow-2xl">
+
+    <!-- HEADER -->
+    <header class="h-14 glass-header flex items-center justify-between px-4 flex-shrink-0 z-30">
+      <div class="flex items-center space-x-1.5">
+        <h1 class="text-2xl font-black tracking-widest bg-gradient-to-r from-pink-500 via-purple-500 to-cyan-400 bg-clip-text text-transparent italic">INSTAGRAM</h1>
+        <span class="bg-gradient-to-r from-pink-500 to-purple-500 text-[8px] font-bold px-1.5 py-0.5 rounded-full">PRO</span>
+      </div>
+      <div class="flex items-center space-x-5 text-xl">
+        <button onclick="switchTab('explore')"><i class="far fa-compass hover:text-pink-500"></i></button>
+        <button onclick="switchTab('dm')" class="relative">
+          <i class="far fa-paper-plane hover:text-cyan-400"></i>
+          <span class="absolute -top-1 -right-1 w-2 h-2 bg-pink-500 rounded-full"></span>
+        </button>
+      </div>
+    </header>
+
+    <!-- TOAST NOTIFICATION -->
+    <div id="toast" class="hidden absolute top-16 left-1/2 -translate-x-1/2 z-50 bg-zinc-900 border border-pink-500/40 px-4 py-2 rounded-full text-xs font-semibold text-pink-300 shadow-xl backdrop-blur-md"></div>
+
+    <!-- MAIN VIEW CONTAINER -->
+    <main class="flex-1 overflow-y-auto hide-scrollbar relative">
+
+      <!-- 1. FEED TAB -->
+      <div id="tab-feed" class="tab-content pb-20">
+        <!-- STORIES TRAY -->
+        <div class="p-3 bg-zinc-950/80 border-b border-zinc-900 overflow-x-auto hide-scrollbar flex space-x-4 items-center">
+          <label class="flex flex-col items-center space-y-1 flex-shrink-0 cursor-pointer">
+            <div class="relative w-16 h-16 rounded-full p-[2px] bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-600">
+              <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300" class="w-full h-full rounded-full object-cover border-2 border-black" />
+              <span class="absolute bottom-0 right-0 bg-cyan-400 text-black rounded-full w-5 h-5 flex items-center justify-center text-xs font-black border-2 border-black">+</span>
+            </div>
+            <span class="text-[10px] text-zinc-300">Your Story</span>
+            <input type="file" accept="image/*" class="hidden" onchange="uploadStory(event)" />
+          </label>
+          <div onclick="openStory('Ayesha VIP', 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=500')" class="flex flex-col items-center space-y-1 flex-shrink-0 cursor-pointer">
+            <div class="w-16 h-16 rounded-full p-[2px] bg-gradient-to-tr from-pink-500 via-purple-500 to-cyan-400">
+              <img src="https://images.unsplash.com/photo-1517841905240-472988babdf9?w=300" class="w-full h-full rounded-full object-cover border-2 border-black" />
+            </div>
+            <span class="text-[10px] text-zinc-300">Ayesha_VIP</span>
+          </div>
+        </div>
+
+        <!-- POSTS CONTAINER -->
+        <div id="posts-list" class="divide-y divide-zinc-900">
+          <!-- Dynamic posts will load here -->
+        </div>
+      </div>
+
+      <!-- 2. EXPLORE TAB -->
+      <div id="tab-explore" class="tab-content hidden p-2 grid grid-cols-3 gap-1 pb-20" id="explore-grid">
+        <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300" class="aspect-square object-cover w-full bg-zinc-900" />
+        <img src="https://images.unsplash.com/photo-1517841905240-472988babdf9?w=300" class="aspect-square object-cover w-full bg-zinc-900" />
+        <img src="https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=300" class="aspect-square object-cover w-full bg-zinc-900" />
+      </div>
+
+      <!-- 3. REELS TAB WITH MUSIC -->
+      <div id="tab-reels" class="tab-content hidden h-full pb-20 overflow-y-scroll snap-y-mandatory hide-scrollbar">
+        <div class="h-full w-full relative snap-start flex items-center justify-center bg-zinc-950">
+          <video src="https://assets.mixkit.co/videos/preview/mixkit-girl-in-neon-lights-42410-large.mp4" autoplay loop muted playsinline class="h-full w-full object-cover"></video>
+          <div class="absolute bottom-16 left-4 right-16 space-y-2">
+            <div class="flex items-center space-x-2">
+              <div class="w-8 h-8 rounded-full bg-pink-500 flex items-center justify-center font-bold text-xs">R</div>
+              <span class="text-xs font-bold">Rahul_Pro</span>
+            </div>
+            <p class="text-xs text-zinc-200">Vibing in neon lights ✨</p>
+            <div class="flex items-center space-x-2 text-[10px] text-pink-300 bg-black/40 px-2 py-1 rounded-full w-fit backdrop-blur-sm">
+              <i class="fas fa-music animate-spin"></i>
+              <span>Original Audio - AP Dhillon</span>
+            </div>
+          </div>
+          <div class="absolute bottom-20 right-3 flex flex-col items-center space-y-4 text-xl">
+            <button onclick="toggleLike(this)"><i class="far fa-heart text-xl"></i></button>
+            <button onclick="openComments()"><i class="far fa-comment text-xl"></i></button>
+            <button onclick="sharePost()"><i class="far fa-paper-plane text-xl"></i></button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4. DM TAB -->
+      <div id="tab-dm" class="tab-content hidden p-4 pb-20 space-y-4">
+        <h2 class="font-bold text-sm text-pink-400">Messages</h2>
+        <div class="space-y-3">
+          <div onclick="openChat('Ayesha_VIP')" class="flex items-center justify-between p-3 bg-zinc-950 rounded-xl cursor-pointer border border-zinc-900">
+            <div class="flex items-center space-x-3">
+              <div class="w-10 h-10 rounded-full bg-gradient-to-tr from-pink-500 to-cyan-400 flex items-center justify-center font-bold text-xs">A</div>
+              <div>
+                <p class="text-xs font-bold">Ayesha_VIP</p>
+                <p class="text-[10px] text-zinc-400">Hey there! How are you?</p>
+              </div>
+            </div>
+            <span class="text-[10px] text-zinc-500">10m</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 5. PROFILE TAB -->
+      <div id="tab-profile" class="tab-content hidden p-4 space-y-6 pb-20">
+        <div class="flex justify-between items-center">
+          <h2 class="font-bold text-base">Your Profile <i class="fas fa-check-circle text-cyan-400 text-xs"></i></h2>
+        </div>
+        <div class="flex items-center space-x-6">
+          <div class="w-20 h-20 rounded-full bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-600 p-[2.5px]">
+            <div class="w-full h-full bg-black rounded-full flex items-center justify-center font-bold text-xl text-pink-400">Y</div>
+          </div>
+          <div class="flex space-x-6 text-center text-xs flex-1 justify-around">
+            <div><p class="font-bold text-sm text-pink-400" id="profile-post-count">0</p><p class="text-zinc-500">Posts</p></div>
+            <div><p class="font-bold text-sm text-cyan-400">1.2M</p><p class="text-zinc-500">Followers</p></div>
+            <div><p class="font-bold text-sm text-purple-400">142</p><p class="text-zinc-500">Following</p></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- POST UPLOAD WITH MUSIC SELECTION MODAL -->
+      <div id="upload-modal" class="hidden absolute inset-0 z-50 bg-black flex flex-col p-4 justify-between">
+        <div>
+          <div class="flex justify-between items-center border-b border-zinc-900 pb-3">
+            <button onclick="closeUploadModal()" class="text-xs text-zinc-400">Cancel</button>
+            <span class="text-xs font-bold text-pink-400">NEW POST & MUSIC</span>
+            <button onclick="publishPost()" class="text-xs font-bold text-cyan-400">Share</button>
+          </div>
+          <div class="flex space-x-3 mt-4">
+            <img id="upload-preview" src="" class="w-24 h-28 object-cover rounded-lg border border-zinc-800" />
+            <textarea id="upload-caption" placeholder="Write a caption..." class="w-full bg-zinc-900 text-xs p-3 rounded-lg text-white focus:outline-none resize-none h-28"></textarea>
+          </div>
+          <div class="mt-4 space-y-2">
+            <label class="text-xs font-bold text-pink-300 flex items-center space-x-1.5">
+              <i class="fas fa-music"></i>
+              <span>Add Background Song / Music</span>
+            </label>
+            <select id="song-selector" class="w-full bg-zinc-900 border border-zinc-800 text-xs text-white p-2.5 rounded-lg focus:outline-none">
+              <option value="Arijit Singh - Soulful Mashup">🎵 Arijit Singh - Soulful Mashup</option>
+              <option value="AP Dhillon - Brown Munde Vibe">🎵 AP Dhillon - Brown Munde Vibe</option>
+              <option value="Anirudh - Hukum & Mass Beat">🎵 Anirudh - Hukum & Mass Beat</option>
+              <option value="English Pop - Summer High">🎵 English Pop - Summer High</option>
+            </select>
+          </div>
+        </div>
+        <div class="text-[10px] text-zinc-500 text-center pb-4">Your post will be saved permanently on your device storage.</div>
+      </div>
+
+      <!-- CHAT MODAL -->
+      <div id="chat-modal" class="hidden absolute inset-0 z-50 bg-black flex flex-col p-4">
+        <div class="flex items-center space-x-3 border-b border-zinc-900 pb-3">
+          <button onclick="closeChat()" class="text-xs text-cyan-400"><i class="fas fa-arrow-left"></i> Back</button>
+          <span id="chat-user-name" class="text-xs font-bold">Chat</span>
+        </div>
+        <div id="chat-messages" class="flex-1 overflow-y-auto space-y-2 py-4 text-xs">
+          <div class="flex justify-start"><div class="px-3 py-2 rounded-xl bg-zinc-900 text-zinc-200">Hey there! How are you?</div></div>
+        </div>
+        <div class="flex space-x-2 pt-2 border-t border-zinc-900">
+          <input id="chat-input" type="text" placeholder="Message..." class="w-full bg-zinc-900 px-3 py-2 rounded-full text-xs text-white focus:outline-none" />
+          <button onclick="sendMsg()" class="bg-pink-500 px-4 rounded-full text-xs font-bold">Send</button>
+        </div>
+      </div>
+
+      <!-- COMMENTS MODAL -->
+      <div id="comment-modal" class="hidden absolute inset-0 z-50 bg-black/85 backdrop-blur-md flex flex-col justify-end">
+        <div class="bg-zinc-950 w-full rounded-t-3xl border-t border-zinc-800 h-[60%] flex flex-col">
+          <div class="flex justify-between items-center p-4 border-b border-zinc-900">
+            <span class="text-xs font-bold text-pink-400">COMMENTS</span>
+            <button onclick="closeComments()" class="text-white font-bold">✕</button>
+          </div>
+          <div id="comments-container" class="flex-1 overflow-y-auto p-4 space-y-3 text-xs">
+            <div><span class="font-bold text-pink-300 mr-2">Rahul_Pro</span>Amazing click! 🔥</div>
+          </div>
+          <div class="p-3 border-t border-zinc-900 flex space-x-2 bg-black">
+            <input id="comment-input" type="text" placeholder="Add a comment..." class="w-full bg-zinc-900 text-xs px-4 py-2 rounded-full text-white focus:outline-none" />
+            <button onclick="addComment()" class="bg-pink-500 px-4 rounded-full text-xs font-bold">Post</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- STORY VIEWER MODAL -->
+      <div id="story-modal" class="hidden absolute inset-0 z-50 bg-black flex flex-col justify-between p-4">
+        <div class="flex justify-between items-center pt-2">
+          <span id="story-user" class="text-xs font-bold">Story</span>
+          <button onclick="closeStory()" class="text-white text-xl font-bold">✕</button>
+        </div>
+        <div class="flex-1 flex items-center justify-center">
+          <img id="story-img" src="" class="max-h-[75vh] object-contain rounded-xl" />
+        </div>
+      </div>
+
+    </main>
+
+    <!-- BOTTOM NAVIGATION -->
+    <nav class="h-14 glass-nav flex justify-around items-center z-40 text-xl absolute bottom-0 left-0 right-0 max-w-md mx-auto">
+      <button onclick="switchTab('feed')" class="text-pink-500"><i class="fas fa-home"></i></button>
+      <button onclick="switchTab('explore')" class="text-zinc-500"><i class="fas fa-search"></i></button>
+      <label class="cursor-pointer bg-gradient-to-tr from-pink-500 via-purple-500 to-cyan-400 w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-lg">
+        <i class="fas fa-plus text-sm"></i>
+        <input type="file" accept="image/*" class="hidden" onchange="preparePost(event)" />
+      </label>
+      <button onclick="switchTab('reels')" class="text-zinc-500"><i class="fas fa-film"></i></button>
+      <button onclick="switchTab('profile')" class="text-zinc-500"><i class="far fa-user"></i></button>
+    </nav>
+
+  </div>
+
+  <script>
+    let tempImageString = "";
+
+    function initApp() {
+      loadPosts();
+    }
+
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      toast.innerText = msg;
+      toast.classList.remove('hidden');
+      setTimeout(() => toast.classList.add('hidden'), 2000);
+    }
+
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+      document.getElementById('tab-' + tabId).classList.remove('hidden');
+    }
+
+    // PERSISTENT STORAGE (LocalStorage) FUNCTIONS
+    function getStoredPosts() {
+      const data = localStorage.getItem('insta_pro_posts');
+      if (data) return JSON.parse(data);
+      // Default initial post so feed is never empty
+      return [
+        {
+          id: 1,
+          user: 'Ayesha_VIP',
+          image: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=600',
+          caption: 'Enjoying the day! ✨',
+          song: 'Arijit Singh - Soulful Mashup',
+          likes: 142
+        }
+      ];
+    }
+
+    function savePostsToStorage(posts) {
+      localStorage.setItem('insta_pro_posts', JSON.stringify(posts));
+    }
+
+    function loadPosts() {
+      const posts = getStoredPosts();
+      const list = document.getElementById('posts-list');
+      list.innerHTML = "";
+      
+      document.getElementById('profile-post-count').innerText = posts.length;
+
+      posts.forEach(p => {
+        const div = document.createElement('div');
+        div.className = 'pb-3 bg-black';
+        div.innerHTML = `
+          <div class="flex items-center justify-between px-3 py-2.5">
+            <div class="flex items-center space-x-2">
+              <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-pink-500 to-cyan-400 p-[1px]">
+                <div class="w-full h-full bg-black rounded-full flex items-center justify-center text-xs font-bold text-pink-400">${p.user[0]}</div>
+              </div>
+              <span class="text-xs font-bold">${p.user}</span>
+              <i class="fas fa-check-circle text-cyan-400 text-[10px]"></i>
+            </div>
+            <button onclick="deletePost(${p.id})" class="text-zinc-600 hover:text-red-500 text-xs"><i class="fas fa-trash"></i></button>
+          </div>
+          <div class="w-full bg-zinc-950 flex items-center justify-center max-h-[500px] overflow-hidden">
+            <img src="${p.image}" class="w-full object-cover max-h-[500px]" />
+          </div>
+          <div class="flex justify-between px-4 py-3 text-xl">
+            <div class="flex space-x-5">
+              <button onclick="toggleLike(this, ${p.id})"><i class="far fa-heart hover:text-pink-500"></i></button>
+              <button onclick="openComments()"><i class="far fa-comment hover:text-cyan-400"></i></button>
+              <button onclick="sharePost()"><i class="far fa-paper-plane hover:text-purple-400"></i></button>
+            </div>
+            <button onclick="toggleSave(this)"><i class="far fa-bookmark hover:text-cyan-400"></i></button>
+          </div>
+          <div class="px-4 text-xs space-y-1">
+            <p class="font-bold"><span id="likes-${p.id}">${p.likes}</span> likes</p>
+            <p><span class="font-bold mr-2">${p.user}</span><span class="text-zinc-300">${p.caption}</span></p>
+            ${p.song ? `<div class="flex items-center space-x-1 text-[10px] text-pink-400 pt-1"><i class="fas fa-music"></i><span>${p.song}</span></div>` : ''}
+          </div>
+        `;
+        list.appendChild(div);
+      });
+    }
+
+    function preparePost(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(event) {
+        tempImageString = event.target.result;
+        document.getElementById('upload-preview').src = tempImageString;
+        document.getElementById('upload-modal').classList.remove('hidden');
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function closeUploadModal() {
+      document.getElementById('upload-modal').classList.add('hidden');
+    }
+
+    function publishPost() {
+      const caption = document.getElementById('upload-caption').value;
+      const song = document.getElementById('song-selector').value;
+      
+      const newPost = {
+        id: Date.now(),
+        user: 'You',
+        image: tempImageString,
+        caption: caption || 'My new post ✨',
+        song: song,
+        likes: 1
+      };
+
+      const posts = getStoredPosts();
+      posts.unshift(newPost);
+      savePostsToStorage(posts);
+
+      closeUploadModal();
+      document.getElementById('upload-caption').value = '';
+      loadPosts();
+      switchTab('feed');
+      showToast('🚀 Post published with song successfully!');
+    }
+
+    function deletePost(id) {
+      let posts = getStoredPosts();
+      posts = posts.filter(p => p.id !== id);
+      savePostsToStorage(posts);
+      loadPosts();
+      showToast('🗑️ Post deleted');
+    }
+
+    function toggleLike(btn, id) {
+      const icon = btn.querySelector('i');
+      const likesEl = document.getElementById(`likes-${id}`);
+      if (icon.classList.contains('far')) {
+        icon.className = 'fas fa-heart text-pink-500';
+        if (likesEl) likesEl.innerText = parseInt(likesEl.innerText) + 1;
+        showToast('❤️ Liked!');
+      } else {
+        icon.className = 'far fa-heart';
+        if (likesEl) likesEl.innerText = parseInt(likesEl.innerText) - 1;
+      }
+    }
+
+    function toggleSave(btn) {
+      const icon = btn.querySelector('i');
+      if (icon.classList.contains('far')) {
+        icon.className = 'fas fa-bookmark text-cyan-400';
+        showToast('Bookmark saved!');
+      } else {
+        icon.className = 'far fa-bookmark';
+      }
+    }
+
+    function sharePost() {
+      showToast('✨ Link copied to clipboard!');
+    }
+
+    function openComments() {
+      document.getElementById('comment-modal').classList.remove('hidden');
+    }
+
+    function closeComments() {
+      document.getElementById('comment-modal').classList.add('hidden');
+    }
+
+    function addComment() {
+      const input = document.getElementById('comment-input');
+      if (!input.value.trim()) return;
+      const container = document.getElementById('comments-container');
+      const div = document.createElement('div');
+      div.innerHTML = `<span class="font-bold text-pink-300 mr-2">You</span>${input.value}`;
+      container.appendChild(div);
+      input.value = '';
+    }
+
+    function openStory(user, imgUrl) {
+      document.getElementById('story-user').innerText = user;
+      document.getElementById('story-img').src = imgUrl;
+      document.getElementById('story-modal').classList.remove('hidden');
+    }
+
+    function closeStory() {
+      document.getElementById('story-modal').classList.add('hidden');
+    }
+
+    function uploadStory(e) {
+      const file = e.target.files[0];
+      if (file) {
+        showToast('🌟 Story uploaded successfully!');
+      }
+    }
+
+    function openChat(user) {
+      document.getElementById('chat-user-name').innerText = user;
+      document.getElementById('chat-modal').classList.remove('hidden');
+    }
+
+    function closeChat() {
+      document.getElementById('chat-modal').classList.add('hidden');
+    }
+
+    function sendMsg() {
+      const input = document.getElementById('chat-input');
+      if (!input.value.trim()) return;
+      const container = document.getElementById('chat-messages');
+      const div = document.createElement('div');
+      div.className = 'flex justify-end';
+      div.innerHTML = `<div class="px-3 py-2 rounded-xl bg-pink-600 text-white">${input.value}</div>`;
+      container.appendChild(div);
+      input.value = '';
+    }
+  </script>
+</body>
+</html>
