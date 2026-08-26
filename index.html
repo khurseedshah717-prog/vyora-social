@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VYORA Social</title>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-gray-900 text-white min-h-screen">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const SUPABASE_URL = 'https://bquuaxzsjtiycqbzrmtn.supabase.co';
+    const SUPABASE_ANON_KEY = 'sb_publishable_rOljy0MN3Uvbb-0KYR181Q_Sm2-HHnQ';
+    
+    const supabaseClient = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+
+    function App() {
+      const [posts, setPosts] = React.useState([]);
+      const [userName, setUserName] = React.useState('Vyora User');
+      const [userHandle, setUserHandle] = React.useState('@user');
+      const [newText, setNewText] = React.useState('');
+      const [newMedia, setNewMedia] = React.useState('');
+      const [mediaType, setMediaType] = React.useState('image'); // 'image' or 'video'
+      const [loading, setLoading] = React.useState(true);
+      const [posting, setPosting] = React.useState(false);
+      const [activeTab, setActiveTab] = React.useState('feed'); // 'feed' or 'reels'
+
+      const [activeCommentPostId, setActiveCommentPostId] = React.useState(null);
+      const [commentText, setCommentText] = React.useState('');
+      const [commentsMap, setCommentsMap] = React.useState({});
+
+      const fetchPosts = async () => {
+        if (!supabaseClient) return;
+        try {
+          const { data, error } = await supabaseClient
+            .from('posts')
+            .select('*')
+            .order('created_at', { ascending: false });
+
+          if (!error && data) setPosts(data);
+        } catch (err) {
+          console.error(err);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      React.useEffect(() => {
+        fetchPosts();
+      }, []);
+
+      const handleLike = async (id, currentLikes) => {
+        const newLikes = (currentLikes || 0) + 1;
+        setPosts(posts.map(p => p.id === id ? { ...p, likes: newLikes } : p));
+        if (supabaseClient) {
+          await supabaseClient.from('posts').update({ likes: newLikes }).eq('id', id);
+        }
+      };
+
+      const handleFileUpload = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        if (file.type.startsWith('video/')) {
+          setMediaType('video');
+          const videoUrl = URL.createObjectURL(file);
+          setNewMedia(videoUrl);
+        } else {
+          setMediaType('image');
+          const img = new Image();
+          img.src = URL.createObjectURL(file);
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const MAX_WIDTH = 600;
+            const scaleFactor = MAX_WIDTH / img.width;
+            canvas.width = MAX_WIDTH;
+            canvas.height = img.height * scaleFactor;
+
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            setNewMedia(canvas.toDataURL('image/jpeg', 0.7));
+          };
+        }
+      };
+
+      const handleCreatePost = async (e) => {
+        e.preventDefault();
+        if (!newText.trim() && !newMedia) return;
+
+        setPosting(true);
+        const newPostData = {
+          user_name: userName || 'Anonymous',
+          user_handle: userHandle || '@user',
+          caption: newText,
+          image_url: newMedia,
+          likes: 0
+        };
+
+        if (supabaseClient) {
+          const { data, error } = await supabaseClient
+            .from('posts')
+            .insert([newPostData])
+            .select();
+
+          setPosting(false);
+
+          if (error) {
+            alert('Error: ' + error.message);
+          } else if (data && data.length > 0) {
+            setPosts([data[0], ...posts]);
+            setNewText('');
+            setNewMedia('');
+          }
+        }
+      };
+
+      const handleAddComment = (postId) => {
+        if (!commentText.trim()) return;
+        const existing = commentsMap[postId] || [];
+        const newComment = {
+          id: Date.now(),
+          user: userName,
+          text: commentText
+        };
+        setCommentsMap({ ...commentsMap, [postId]: [...existing, newComment] });
+        setCommentText('');
+      };
+
+      return (
+        <div class="max-w-md mx-auto min-h-screen p-4 flex flex-col justify-between">
+          <div>
+            <header class="flex justify-between items-center py-4 border-b border-gray-800">
+              <h1 class="text-2xl font-bold text-teal-400">VYORA</h1>
+              <div class="flex items-center space-x-2">
+                <input 
+                  type="text" 
+                  value={userName} 
+                  onChange={(e) => setUserName(e.target.value)}
+                  class="bg-gray-800 text-xs px-2 py-1 rounded border border-gray-700 w-24 text-teal-300"
+                  placeholder="Your Name"
+                />
+              </div>
+            </header>
+
+            {/* Post Creator Box */}
+            <form onSubmit={handleCreatePost} class="my-4 p-3 bg-gray-800 rounded-xl border border-gray-700">
+              <textarea
+                class="w-full bg-gray-900 text-sm text-white p-2 rounded-lg focus:outline-none border border-gray-700"
+                placeholder="What's happening? Share a photo or short reel..."
+                rows="2"
+                value={newText}
+                onChange={(e) => setNewText(e.target.value)}
+              ></textarea>
+              
+              {newMedia && (
+                mediaType === 'video' ? (
+                  <video src={newMedia} controls class="w-full max-h-80 rounded-lg my-2 bg-black" />
+                ) : (
+                  <img src={newMedia} alt="Preview" class="w-full max-h-80 object-contain rounded-lg my-2 bg-black" />
+                )
+              )}
+
+              <div class="flex justify-between items-center mt-2">
+                <label class="cursor-pointer text-xs text-teal-400 bg-gray-900 px-3 py-2 rounded-lg border border-gray-700">
+                  📁 Photo / Reel Video
+                  <input type="file" accept="image/*,video/*" class="hidden" onChange={handleFileUpload} />
+                </label>
+                <button type="submit" disabled={posting} class="bg-teal-500 text-black font-semibold text-xs px-4 py-2 rounded-lg disabled:opacity-50">
+                  {posting ? 'Posting...' : 'Post'}
+                </button>
+              </div>
+            </form>
+
+            <main>
+              {/* Tabs navigation */}
+              <div class="flex border-b border-gray-800 mb-4">
+                <button 
+                  onClick={() => setActiveTab('feed')} 
+                  class={`flex-1 py-2 text-center text-sm font-semibold border-b-2 ${activeTab === 'feed' ? 'border-teal-400 text-teal-400' : 'border-transparent text-gray-400'}`}
+                >
+                  Vibe Feed
+                </button>
+                <button 
+                  onClick={() => setActiveTab('reels')} 
+                  class={`flex-1 py-2 text-center text-sm font-semibold border-b-2 ${activeTab === 'reels' ? 'border-teal-400 text-teal-400' : 'border-transparent text-gray-400'}`}
+                >
+                  🎬 Reels
+                </button>
+              </div>
+
+              {loading ? (
+                <p class="text-center text-gray-500 text-sm py-4">Loading content...</p>
+              ) : activeTab === 'feed' ? (
+                // Feed View
+                <div class="space-y-4">
+                  {posts.length === 0 ? (
+                    <p class="text-center text-gray-500 text-sm py-4">No posts yet. Create the first one!</p>
+                  ) : (
+                    posts.map(post => (
+                      <div key={post.id} class="p-4 bg-gray-800 rounded-xl border border-gray-700">
+                        <div class="flex items-center space-x-3 mb-2">
+                          <div class="w-8 h-8 rounded-full bg-teal-500 flex items-center justify-center font-bold text-sm text-black">
+                            {post.user_name ? post.user_name[0].toUpperCase() : 'U'}
+                          </div>
+                          <div>
+                            <p class="font-medium text-sm">{post.user_name}</p>
+                            <p class="text-xs text-gray-400">{post.user_handle}</p>
+                          </div>
+                        </div>
+                        {post.caption && <p class="text-sm my-2 text-gray-300">{post.caption}</p>}
+                        
+                        {post.image_url && (
+                          post.image_url.startsWith('data:video') || post.image_url.endsWith('.mp4') || post.image_url.includes('blob:') ? (
+                            <video src={post.image_url} controls class="w-full h-auto max-h-[500px] rounded-lg my-2 bg-black" />
+                          ) : (
+                            <img src={post.image_url} alt="Post content" class="w-full h-auto max-h-[500px] object-contain rounded-lg my-2 bg-black/40" />
+                          )
+                        )}
+                        
+                        <div class="flex space-x-6 text-xs mt-3 pt-2 border-t border-gray-700">
+                          <button 
+                            onClick={() => handleLike(post.id, post.likes)}
+                            class="flex items-center space-x-1 text-gray-400 hover:text-red-500"
+                          >
+                            <span>❤️</span>
+                            <span>{post.likes || 0}</span>
+                          </button>
+                          <button 
+                            onClick={() => setActiveCommentPostId(activeCommentPostId === post.id ? null : post.id)}
+                            class="flex items-center space-x-1 text-gray-400 hover:text-teal-400"
+                          >
+                            <span>💬</span>
+                            <span>{(commentsMap[post.id] || []).length} Comments</span>
+                          </button>
+                        </div>
+
+                        {activeCommentPostId === post.id && (
+                          <div class="mt-3 pt-3 border-t border-gray-700">
+                            <div class="space-y-2 mb-2 max-h-32 overflow-y-auto">
+                              {(commentsMap[post.id] || []).map(c => (
+                                <div key={c.id} class="text-xs bg-gray-900 p-2 rounded">
+                                  <span class="font-bold text-teal-400">{c.user}: </span>
+                                  <span class="text-gray-300">{c.text}</span>
+                                </div>
+                              ))}
+                            </div>
+                            <div class="flex space-x-2">
+                              <input 
+                                type="text"
+                                value={commentText}
+                                onChange={(e) => setCommentText(e.target.value)}
+                                placeholder="Add a comment..."
+                                class="w-full bg-gray-900 text-xs text-white p-2 rounded border border-gray-700 focus:outline-none"
+                              />
+                              <button 
+                                onClick={() => handleAddComment(post.id)}
+                                class="bg-teal-500 text-black px-3 py-1 rounded text-xs font-semibold"
+                              >
+                                Send
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              ) : (
+                // Reels Dedicated View
+                <div class="space-y-6">
+                  {posts.filter(p => p.image_url && (p.image_url.startsWith('data:video') || p.image_url.endsWith('.mp4') || p.image_url.includes('blob:'))).length === 0 ? (
+                    <div class="text-center py-10 bg-gray-800/50 rounded-xl">
+                      <p class="text-gray-400 text-sm">No Reels uploaded yet.</p>
+                      <p class="text-xs text-teal-400 mt-1">Upload a video file using the post box above!</p>
+                    </div>
+                  ) : (
+                    posts.filter(p => p.image_url && (p.image_url.startsWith('data:video') || p.image_url.endsWith('.mp4') || p.image_url.includes('blob:'))).map(reel => (
+                      <div key={reel.id} class="relative bg-black rounded-2xl overflow-hidden border border-gray-700">
+                        <video src={reel.image_url} controls autoPlay loop muted class="w-full h-[500px] object-cover" />
+                        <div class="absolute bottom-4 left-4 right-4 bg-gradient-to-t from-black/80 to-transparent p-3 rounded-xl">
+                          <p class="font-bold text-sm text-teal-300">{reel.user_name}</p>
+                          <p class="text-xs text-gray-200">{reel.caption}</p>
+                          <div class="flex space-x-4 mt-2">
+                            <button onClick={() => handleLike(reel.id, reel.likes)} class="text-xs text-white flex items-center space-x-1">
+                              <span>❤️ {reel.likes || 0}</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </main>
+          </div>
+
+          <footer class="flex justify-around py-3 bg-gray-800 border-t border-gray-700 rounded-t-xl mt-6">
+            <button onClick={() => setActiveTab('feed')} class={`text-sm font-medium ${activeTab === 'feed' ? 'text-teal-400' : 'text-gray-400'}`}>Discover</button>
+            <button onClick={() => setActiveTab('reels')} class={`text-sm font-medium ${activeTab === 'reels' ? 'text-teal-400' : 'text-gray-400'}`}>🎬 Reels</button>
+            <button class="text-gray-400 text-sm font-medium">Messages</button>
+          </footer>
+        </div>
+      );
+    }
+
+    const container = document.getElementById('root');
+    const root = ReactDOM.createRoot(container);
+    root.render(<App />);
+  </script>
+</body>
+</html>
