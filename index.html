@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VYORA Social</title>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-white">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    function App() {
+      const posts = [
+        { id: 1, name: 'Ivy Anders', handle: '@ivy.inbetween', text: 'Tuesday, a little softer 🌿', likes: 24, comments: 3 },
+        { id: 2, name: 'Ravi Chen', handle: '@ravi.afterhours', text: 'A good playlist makes an ordinary walk feel like a quiet film.', likes: 47, comments: 4 },
+        { id: 3, name: 'Noor Velez', handle: '@noor.notes', text: 'Less rushing, more noticing ✨', likes: 112, comments: 16 }
+      ];
+
+      return (
+        <div class="max-w-md mx-auto min-h-screen p-4 flex flex-col justify-between">
+          <div>
+            <header class="flex justify-between items-center py-4 border-b border-gray-800">
+              <h1 class="text-2xl font-bold text-teal-400">VYORA</h1>
+              <span class="text-xs bg-gray-800 px-3 py-1 rounded-full text-gray-400">Night mode</span>
+            </header>
+
+            <main class="mt-4">
+              <h2 class="text-xl font-semibold mb-4 text-gray-200">Vibe feed</h2>
+              
+              <div class="space-y-4">
+                {posts.map(post => (
+                  <div key={post.id} class="p-4 bg-gray-800 rounded-xl border border-gray-700">
+                    <div class="flex items-center space-x-3 mb-2">
+                      <div class="w-8 h-8 rounded-full bg-teal-500 flex items-center justify-center font-bold text-sm text-black">
+                        {post.name[0]}
+                      </div>
+                      <div>
+                        <p class="font-medium text-sm">{post.name}</p>
+                        <p class="text-xs text-gray-400">{post.handle}</p>
+                      </div>
+                    </div>
+                    <p class="text-sm my-2 text-gray-300">{post.text}</p>
+                    <div class="flex space-x-4 text-xs text-gray-400 mt-3">
+                      <span>❤️ {post.likes}</span>
+                      <span>💬 {post.comments}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </main>
+          </div>
+
+          <footer class="flex justify-around py-3 bg-gray-800 border-t border-gray-700 rounded-t-xl mt-6">
+            <button class="text-teal-400 text-sm font-medium">Discover</button>
+            <button class="text-gray-400 text-sm font-medium">Circles</button>
+            <button class="text-gray-400 text-sm font-medium">Messages</button>
+          </footer>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
