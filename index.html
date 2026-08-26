@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>VYORA - Ultimate Magic Social</title>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <style>
+    body { background-color: #030305; color: #ffffff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; overflow-x: hidden; }
+    .glass-nav { background: rgba(10, 10, 15, 0.85); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-top: 1px solid rgba(255, 255, 255, 0.1); }
+    .glass-header { background: rgba(10, 10, 15, 0.8); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
+    .hide-scrollbar::-webkit-scrollbar { display: none; }
+    .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+    @keyframes magicPulse {
+      0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(236, 72, 153, 0.7); }
+      50% { transform: scale(1.25); box-shadow: 0 0 20px 10px rgba(168, 85, 247, 0.4); }
+      100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(236, 72, 153, 0); }
+    }
+    @keyframes floatUp {
+      0% { transform: translateY(0) scale(0.5); opacity: 1; }
+      100% { transform: translateY(-80px) scale(1.4); opacity: 0; }
+    }
+    .magic-active { animation: magicPulse 0.4s ease-in-out; }
+    .floating-spark {
+      position: absolute;
+      pointer-events: none;
+      animation: floatUp 0.8s forwards ease-out;
+      font-size: 24px;
+      z-index: 100;
+    }
+  </style>
+</head>
+<body class="select-none">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const SUPABASE_URL = 'https://bquuaxzsjtiycqbzrmtn.supabase.co';
+    const SUPABASE_ANON_KEY = 'sb_publishable_rOljy0MN3Uvbb-0KYR181Q_Sm2-HHnQ';
+    const supabaseClient = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+
+    function App() {
+      const [posts, setPosts] = React.useState([]);
+      const [stories, setStories] = React.useState([
+        { id: 1, user: 'Vyora Official', img: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=500&auto=format&fit=crop&q=60' }
+      ]);
+      const [activeTab, setActiveTab] = React.useState('feed');
+      const [userName, setUserName] = React.useState('Vyora VIP');
+      const [caption, setCaption] = React.useState('');
+      const [previewUrl, setPreviewUrl] = React.useState('');
+      const [mediaType, setMediaType] = React.useState('image');
+      const [uploadType, setUploadType] = React.useState('post'); // 'post' or 'story'
+      const [posting, setPosting] = React.useState(false);
+      const [loading, setLoading] = React.useState(true);
+
+      // Interactive States
+      const [activeCommentPost, setActiveCommentPost] = React.useState(null);
+      const [commentsMap, setCommentsMap] = React.useState({});
+      const [commentInput, setCommentInput] = React.useState('');
+      const [savedPosts, setSavedPosts] = React.useState({});
+      const [likedPosts, setLikedPosts] = React.useState({});
+      const [sparks, setSparks] = React.useState([]);
+      const [activeStoryViewer, setActiveStoryViewer] = React.useState(null);
+
+      const fetchPosts = async () => {
+        if (!supabaseClient) return;
+        try {
+          const { data, error } = await supabaseClient
+            .from('posts')
+            .select('*')
+            .order('created_at', { ascending: false });
+          if (!error && data) setPosts(data);
+        } catch (err) {
+          console.error(err);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      React.useEffect(() => { fetchPosts(); }, []);
+
+      const triggerMagicSpark = (e, emoji = '💖') => {
+        const rect = e.currentTarget.getBoundingClientRect();
+        const x = rect.left + rect.width / 2;
+        const y = rect.top + rect.height / 2;
+        const newSpark = { id: Date.now() + Math.random(), x, y, emoji };
+        setSparks(prev => [...prev, newSpark]);
+        setTimeout(() => {
+          setSparks(prev => prev.filter(s => s.id !== newSpark.id));
+        }, 800);
+      };
+
+      // File selection for Posts or Stories
+      const handleFileSelection = (e, type = 'post') => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        setUploadType(type);
+        const isVid = file.type.startsWith('video/') || file.name.match(/\.(mp4|mkv|mov|webm|3gp)$/i);
+        setMediaType(isVid ? 'video' : 'image');
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          if (isVid) {
+            setPreviewUrl(event.target.result);
+            setActiveTab('create');
+          } else {
+            const img = new Image();
+            img.src = event.target.result;
+            img.onload = () => {
+              const canvas = document.createElement('canvas');
+              const MAX_WIDTH = 900;
+              const scaleFactor = MAX_WIDTH / img.width;
+              canvas.width = MAX_WIDTH;
+              canvas.height = img.height * scaleFactor;
+              const ctx = canvas.getContext('2d');
+              ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+              setPreviewUrl(canvas.toDataURL('image/jpeg', 0.85));
+              setActiveTab('create');
+            };
+          }
+        };
+        reader.readAsDataURL(file);
+      };
+
+      const handlePublish = async () => {
+        if (!previewUrl) return;
+        setPosting(true);
+
+        if (uploadType === 'story') {
+          const newStory = { id: Date.now(), user: userName, img: previewUrl };
+          setStories([newStory, ...stories]);
+          setPreviewUrl('');
+          setPosting(false);
+          setActiveTab('feed');
+          alert('✨ Story uploaded successfully!');
+          return;
+        }
+
+        // Regular Post / Reel Publishing to Supabase
+        try {
+          if (supabaseClient) {
+            const { data: newPost, error } = await supabaseClient
+              .from('posts')
+              .insert([{
+                user_name: userName,
+                user_handle: `@${userName.toLowerCase().replace(/\s+/g, '')}`,
+                caption: caption,
+                image_url: previewUrl,
+                likes: 0
+              }])
+              .select();
+
+            if (!error && newPost) {
+              setPosts([newPost[0], ...posts]);
+            }
+          } else {
+            // Local fallback if supabase is unconfigured
+            const localPost = {
+              id: Date.now(),
+              user_name: userName,
+              caption: caption,
+              image_url: previewUrl,
+              likes: 0
+            };
+            setPosts([localPost, ...posts]);
+          }
+          setPreviewUrl('');
+          setCaption('');
+          setActiveTab('feed');
+        } catch (err) {
+          alert('Error: ' + err.message);
+        } finally {
+          setPosting(false);
+        }
+      };
+
+      const handleLike = (e, id, currentLikes) => {
+        triggerMagicSpark(e, '💖');
+        const isLiked = likedPosts[id];
+        const newLikes = isLiked ? (currentLikes || 1) - 1 : (currentLikes || 0) + 1;
+        
+        setLikedPosts({ ...likedPosts, [id]: !isLiked });
+        setPosts(posts.map(p => p.id === id ? { ...p, likes: newLikes } : p));
+
+        if (supabaseClient) {
+          supabaseClient.from('posts').update({ likes: newLikes }).eq('id', id);
+        }
+      };
+
+      const toggleSave = (e, id) => {
+        triggerMagicSpark(e, '✨');
+        setSavedPosts({ ...savedPosts, [id]: !savedPosts[id] });
+      };
+
+      const handleShare = (e, post) => {
+        triggerMagicSpark(e, '🚀');
+        if (navigator.share) {
+          navigator.share({
+            title: 'VYORA Post',
+            text: post.caption || 'Check out this awesome post!',
+            url: window.location.href,
+          }).catch(() => {});
+        } else {
+          navigator.clipboard.writeText(window.location.href);
+          alert('Magic Link Copied to Clipboard!');
+        }
+      };
+
+      const handleAddComment = (e, postId) => {
+        triggerMagicSpark(e, '💬');
+        if (!commentInput.trim()) return;
+        const currentComments = commentsMap[postId] || [];
+        const newComment = { id: Date.now(), user: userName, text: commentInput };
+        setCommentsMap({ ...commentsMap, [postId]: [...currentComments, newComment] });
+        setCommentInput('');
+      };
+
+      const isVideoFormat = (url) => {
+        if (!url) return false;
+        return url.startsWith('data:video') || url.match(/\.(mp4|mkv|mov|webm|3gp)$/i);
+      };
+
+      return (
+        <div class="max-w-md mx-auto min-h-screen bg-black text-white flex flex-col justify-between pb-16 relative border-x border-zinc-900 shadow-2xl">
+          
+          {/* Floating Magic Sparks */}
+          {sparks.map(spark => (
+            <div key={spark.id} class="floating-spark" style={{ left: `${spark.x - 12}px`, top: `${spark.y - 12}px` }}>
+              {spark.emoji}
+            </div>
+          ))}
+
+          {/* Top Header */}
+          <header class="sticky top-0 z-40 glass-header flex justify-between items-center px-4 py-3 border-b border-zinc-800/60">
+            <h1 class="text-2xl font-black tracking-widest bg-gradient-to-r from-pink-500 via-purple-500 to-cyan-400 bg-clip-text text-transparent italic drop-shadow-[0_0_10px_rgba(236,72,153,0.5)]">VYORA</h1>
+            <div class="flex items-center space-x-5 text-lg">
+              <button onClick={(e) => triggerMagicSpark(e, '🔥')} class="hover:text-pink-500 transition-colors"><i class="far fa-heart"></i></button>
+              <button onClick={(e) => triggerMagicSpark(e, '⚡')} class="hover:text-cyan-400 transition-colors"><i class="fab fa-paper-plane"></i></button>
+            </div>
+          </header>
+
+          <main class="flex-1 overflow-y-auto hide-scrollbar">
+
+            {/* Stories Tray */}
+            {activeTab === 'feed' && (
+              <div class="flex space-x-4 p-4 overflow-x-auto hide-scrollbar border-b border-zinc-900/80 items-center">
+                {/* Your Story Upload Button */}
+                <label class="flex flex-col items-center space-y-1 flex-shrink-0 cursor-pointer">
+                  <div class="relative w-16 h-16 rounded-full p-[2.5px] bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-600 shadow-[0_0_15px_rgba(236,72,153,0.4)]">
+                    <div class="w-full h-full bg-zinc-950 rounded-full flex items-center justify-center border-2 border-black font-bold text-sm overflow-hidden">
+                      {userName[0]}
+                    </div>
+                    <span class="absolute bottom-0 right-0 bg-cyan-500 text-black rounded-full w-5 h-5 flex items-center justify-center text-xs font-black border-2 border-black">+</span>
+                  </div>
+                  <span class="text-[11px] text-zinc-300 font-medium">Add Story</span>
+                  <input type="file" accept="image/*,video/*" class="hidden" onChange={(e) => handleFileSelection(e, 'story')} />
+                </label>
+
+                {/* Active Stories List */}
+                {stories.map(story => (
+                  <div key={story.id} onClick={() => setActiveStoryViewer(story)} class="flex flex-col items-center space-y-1 flex-shrink-0 cursor-pointer">
+                    <div class="w-16 h-16 rounded-full p-[2.5px] bg-gradient-to-tr from-pink-500 to-cyan-400">
+                      <img src={story.img} class="w-full h-full rounded-full object-cover border-2 border-black" alt="Story" />
+                    </div>
+                    <span class="text-[11px] text-zinc-300 truncate w-16 text-center">{story.user}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* STORY VIEWER MODAL */}
+            {activeStoryViewer && (
+              <div class="fixed inset-0 z-50 bg-black flex flex-col justify-between p-4">
+                <div class="flex justify-between items-center z-10 pt-2">
+                  <div class="flex items-center space-x-2">
+                    <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-pink-500 to-cyan-400 p-[1px]">
+                      <div class="w-full h-full bg-black rounded-full flex items-center justify-center font-bold text-xs">{activeStoryViewer.user[0]}</div>
+                    </div>
+                    <span class="text-xs font-bold">{activeStoryViewer.user}</span>
+                  </div>
+                  <button onClick={() => setActiveStoryViewer(null)} class="text-white text-xl font-bold px-3 py-1">✕</button>
+                </div>
+                <div class="flex-1 flex items-center justify-center relative my-2">
+                  <img src={activeStoryViewer.img} class="max-h-[80vh] w-auto rounded-xl object-contain shadow-2xl" alt="Full Story" />
+                </div>
+                <div class="pb-4">
+                  <input type="text" placeholder="Reply to story..." class="w-full bg-zinc-900 text-xs px-4 py-3 rounded-full border border-zinc-800 text-white focus:outline-none" />
+                </div>
+              </div>
+            )}
+
+            {/* FEED TAB */}
+            {activeTab === 'feed' && (
+              <div class="divide-y divide-zinc-900/80">
+                {loading ? (
+                  <div class="flex justify-center items-center py-24">
+                    <div class="w-8 h-8 border-2 border-pink-500 border-t-transparent rounded-full animate-spin"></div>
+                  </div>
+                ) : posts.length === 0 ? (
+                  <div class="text-center py-28 text-zinc-500 text-sm">No magic feeds yet. Tap (+) below to publish!</div>
+                ) : (
+                  posts.map(post => (
+                    <div key={post.id} class="pb-4 bg-zinc-950/40">
+                      <div class="flex items-center justify-between px-3 py-2.5">
+                        <div class="flex items-center space-x-3">
+                          <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-pink-500 to-cyan-400 p-[1.5px]">
+                            <div class="w-full h-full bg-black rounded-full flex items-center justify-center text-xs font-bold">
+                              {post.user_name ? post.user_name[0].toUpperCase() : 'U'}
+                            </div>
+                          </div>
+                          <div>
+                            <p class="text-xs font-bold text-zinc-100 leading-none">{post.user_name}</p>
+                            <p class="text-[10px] text-cyan-400 font-medium leading-tight mt-0.5">✨ Magic Spatial Audio</p>
+                          </div>
+                        </div>
+                        <i class="fas fa-ellipsis-h text-zinc-500 text-xs"></i>
+                      </div>
+
+                      {/* Media Container with Double Tap Magic */}
+                      <div 
+                        onDoubleClick={(e) => handleLike(e, post.id, post.likes)} 
+                        class="w-full bg-black flex items-center justify-center max-h-[550px] overflow-hidden relative cursor-pointer"
+                      >
+                        {isVideoFormat(post.image_url) ? (
+                          <video src={post.image_url} controls loop playsInline class="w-full max-h-[550px] object-cover" />
+                        ) : (
+                          <img src={post.image_url} alt="Post" class="w-full max-h-[550px] object-cover" />
+                        )}
+                      </div>
+
+                      {/* Action Buttons */}
+                      <div class="flex justify-between px-4 py-3 text-xl">
+                        <div class="flex space-x-5">
+                          <button onClick={(e) => handleLike(e, post.id, post.likes)} class="transition-transform active:scale-150">
+                            {likedPosts[post.id] ? (
+                              <i class="fas fa-heart text-pink-500 magic-active drop-shadow-[0_0_10px_rgba(236,72,153,0.8)]"></i>
+                            ) : (
+                              <i class="far fa-heart text-zinc-200 hover:text-pink-500"></i>
+                            )}
+                          </button>
+                          <button onClick={(e) => { triggerMagicSpark(e, '💬'); setActiveCommentPost(post); }} class="hover:text-cyan-400 transition-colors">
+                            <i class="far fa-comment"></i>
+                          </button>
+                          <button onClick={(e) => handleShare(e, post)} class="hover:text-purple-400 transition-colors">
+                            <i class="far fa-paper-plane"></i>
+                          </button>
+                        </div>
+                        <button onClick={(e) => toggleSave(e, post.id)} class="transition-transform active:scale-125">
+                          {savedPosts[post.id] ? (
+                            <i class="fas fa-bookmark text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.8)]"></i>
+                          ) : (
+                            <i class="far fa-bookmark text-zinc-200 hover:text-cyan-400"></i>
+                          )}
+                        </button>
+                      </div>
+
+                      <div class="px-4 text-xs space-y-1">
+                        <p class="font-bold text-zinc-100">{post.likes || 0} magical likes</p>
+                        {post.caption && (
+                          <p><span class="font-bold mr-2 text-zinc-200">{post.user_name}</span><span class="text-zinc-300">{post.caption}</span></p>
+                        )}
+                        <button onClick={() => setActiveCommentPost(post)} class="text-zinc-500 pt-0.5 block hover:text-zinc-300">
+                          View comments ({(commentsMap[post.id] || []).length})
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+
+            {/* REELS TAB */}
+            {activeTab === 'reels' && (
+              <div class="space-y-4">
+                {posts.filter(p => isVideoFormat(p.image_url)).length === 0 ? (
+                  <div class="text-center py-32 text-zinc-500 text-sm">No Magic Reels available yet. Tap (+) to upload video!</div>
+                ) : (
+                  posts.filter(p => isVideoFormat(p.image_url)).map(reel => (
+                    <div key={reel.id} class="relative w-full h-[75vh] bg-black flex items-center justify-center border-b border-zinc-900">
+                      <video src={reel.image_url} controls autoPlay loop muted playsInline class="w-full h-full object-cover" />
+                      
+                      <div class="absolute bottom-6 left-4 right-16 z-10 space-y-2">
+                        <div class="flex items-center space-x-2">
+                          <div class="w-7 h-7 rounded-full bg-white text-black font-bold flex items-center justify-center text-xs">
+                            {reel.user_name[0]}
+                          </div>
+                          <span class="text-xs font-bold">{reel.user_name}</span>
+                        </div>
+                        <p class="text-xs text-zinc-200">{reel.caption}</p>
+                      </div>
+
+                      <div class="absolute right-4 bottom-12 z-10 flex flex-col items-center space-y-5 text-xl">
+                        <button onClick={(e) => handleLike(e, reel.id, reel.likes)} class="flex flex-col items-center text-xs">
+                          {likedPosts[reel.id] ? (
+                            <i class="fas fa-heart text-pink-500 magic-active text-2xl"></i>
+                          ) : (
+                            <i class="fas fa-heart text-white text-2xl"></i>
+                          )}
+                          <span class="mt-1 font-semibold">{reel.likes || 0}</span>
+                        </button>
+                        <button onClick={(e) => { triggerMagicSpark(e, '💬'); setActiveCommentPost(reel); }}><i class="fas fa-comment"></i></button>
+                        <button onClick={(e) => handleShare(e, reel)}><i class="fas fa-paper-plane"></i></button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+
+            {/* COMMENTS DRAWER / MODAL (FULLY FIXED) */}
+            {activeCommentPost && (
+              <div class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex flex-col justify-end animate-fadeIn">
+                <div class="bg-zinc-950 w-full max-w-md mx-auto rounded-t-3xl border-t border-zinc-800 max-h-[70vh] flex flex-col shadow-2xl">
+                  <div class="flex justify-between items-center p-4 border-b border-zinc-900">
+                    <span class="text-xs font-bold tracking-wider text-pink-400">✨ MAGIC COMMENTS</span>
+                    <button onClick={() => setActiveCommentPost(null)} class="text-zinc-400 font-bold px-2 py-1">✕</button>
+                  </div>
+                  <div class="flex-1 overflow-y-auto p-4 space-y-3">
+                    {(!commentsMap[activeCommentPost.id] || commentsMap[activeCommentPost.id].length === 0) ? (
+                      <p class="text-center text-zinc-500 text-xs py-12">No comments yet. Drop a magical remark!</p>
+                    ) : (
+                      commentsMap[activeCommentPost.id].map(c => (
+                        <div key={c.id} class="flex items-start space-x-2 text-xs">
+                          <div class="w-6 h-6 rounded-full bg-gradient-to-tr from-pink-500 to-cyan-400 flex items-center justify-center font-bold text-[10px]">
+                            {c.user[0]}
+                          </div>
+                          <div>
+                            <span class="font-bold mr-2 text-pink-300">{c.user}</span>
+                            <span class="text-zinc-300">{c.text}</span>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                  <div class="p-3 border-t border-zinc-900 flex space-x-2 bg-black">
+                    <input 
+                      type="text" 
+                      value={commentInput} 
+                      onChange={(e) => setCommentInput(e.target.value)} 
+                      placeholder="Type something magical..."
+                      class="w-full bg-zinc-900 text-xs px-4 py-2.5 rounded-full border border-zinc-800 focus:outline-none focus:border-pink-500 text-white"
+                    />
+                    <button onClick={(e) => handleAddComment(e, activeCommentPost.id)} class="text-pink-500 text-xs font-bold px-3">Post</button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* CREATE / UPLOAD SCREEN (POST OR REEL) */}
+            {activeTab === 'create' && (
+              <div class="p-4 space-y-4">
+                <div class="flex justify-between items-center border-b border-zinc-800 pb-3">
+                  <button onClick={() => setActiveTab('feed')} class="text-xs text-zinc-400">Cancel</button>
+                  <h2 class="font-bold text-sm bg-gradient-to-r from-pink-500 to-cyan-400 bg-clip-text text-transparent">
+                    {uploadType === 'story' ? 'New Story' : 'New Magic Post'}
+                  </h2>
+                  <button 
+                    onClick={handlePublish} 
+                    disabled={posting} 
+                    class="text-cyan-400 font-bold text-xs disabled:opacity-50"
+                  >
+                    {posting ? 'Publishing...' : 'Share'}
+                  </button>
+                </div>
+
+                <div class="flex space-x-4">
+                  <div class="w-28 h-36 bg-zinc-900 rounded-xl overflow-hidden flex-shrink-0 border border-zinc-800 flex items-center justify-center">
+                    {mediaType === 'video' ? (
+                      <video src={previewUrl} class="w-full h-full object-cover" />
+                    ) : (
+                      <img src={previewUrl} alt="Preview" class="w-full h-full object-cover" />
+                    )}
+                  </div>
+                  {uploadType === 'post' && (
+                    <textarea
+                      class="w-full bg-transparent text-xs text-white placeholder-zinc-500 focus:outline-none resize-none pt-1"
+                      placeholder="Write a magical caption..."
+                      rows="6"
+                      value={caption}
+                      onChange={(e) => setCaption(e.target.value)}
+                    ></textarea>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* PROFILE TAB */}
+            {activeTab === 'profile' && (
+              <div class="p-4 space-y-6">
+                <div class="flex justify-between items-center">
+                  <h2 class="font-bold text-base">{userName}</h2>
+                  <i class="fas fa-bars text-lg text-pink-500"></i>
+                </div>
+                <div class="flex items-center space-x-6">
+                  <div class="w-20 h-20 rounded-full bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-600 p-[2.5px] shadow-[0_0_20px_rgba(236,72,153,0.5)]">
+                    <div class="w-full h-full bg-black rounded-full flex items-center justify-center font-bold text-xl text-pink-400">
+                      {userName[0]}
+                    </div>
+                  </div>
+                  <div class="flex space-x-6 text-center text-xs flex-1 justify-around">
+                    <div>
+                      <p class="font-bold text-sm text-pink-400">{posts.length}</p>
+                      <p class="text-zinc-500">Posts</p>
+                    </div>
+                    <div>
+                      <p class="font-bold text-sm text-cyan-400">105K</p>
+                      <p class="text-zinc-500">Followers</p>
+                    </div>
+                    <div>
+                      <p class="font-bold text-sm text-purple-400">1</p>
+                      <p class="text-zinc-500">Following</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+          </main>
+
+          {/* Bottom Navigation with Glowing Touch */}
+          <nav class="fixed bottom-0 left-0 right-0 max-w-md mx-auto glass-nav flex justify-around items-center py-3 z-50 text-xl">
+            <button onClick={(e) => { triggerMagicSpark(e, '🏠'); setActiveTab('feed'); }} class={activeTab === 'feed' ? 'text-pink-500 drop-shadow-[0_0_8px_rgba(236,72,153,0.8)]' : 'text-zinc-500'}><i class="fas fa-home"></i></button>
+            <button onClick={(e) => { triggerMagicSpark(e, '🎬'); setActiveTab('reels'); }} class={activeTab === 'reels' ? 'text-pink-500 drop-shadow-[0_0_8px_rgba(236,72,153,0.8)]' : 'text-zinc-500'}><i class="fas fa-film"></i></button>
+
+            {/* Magical Glowing Plus Button (Opens File Picker for Image/Video Posts) */}
+            <label onClick={(e) => triggerMagicSpark(e, '✨')} class="cursor-pointer bg-gradient-to-tr from-pink-500 via-purple-500 to-cyan-400 w-11 h-11 rounded-2xl flex items-center justify-center text-white active:scale-75 transition-transform shadow-[0_0_20px_rgba(236,72,153,0.7)]">
+              <i class="fas fa-plus text-sm"></i>
+              <input 
+                type="file" 
+                accept="image/*,video/*" 
+                class="hidden" 
+                onChange={(e) => handleFileSelection(e, 'post')} 
+              />
+            </label>
+
+            <button onClick={(e) => triggerMagicSpark(e, '🔥')} class="text-zinc-500 hover:text-pink-500"><i class="far fa-heart"></i></button>
+            <button onClick={(e) => { triggerMagicSpark(e, '👤'); setActiveTab('profile'); }} class={activeTab === 'profile' ? 'text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.8)]' : 'text-zinc-500'}><i class="far fa-user"></i></button>
+          </nav>
+
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
