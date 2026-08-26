@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>VYORA Social</title>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <style>
+    body { background-color: #000000; color: #ffffff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    .glass-nav { background: rgba(0, 0, 0, 0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+    .hide-scrollbar::-webkit-scrollbar { display: none; }
+    .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  </style>
+</head>
+<body class="select-none">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const SUPABASE_URL = 'https://bquuaxzsjtiycqbzrmtn.supabase.co';
+    const SUPABASE_ANON_KEY = 'sb_publishable_rOljy0MN3Uvbb-0KYR181Q_Sm2-HHnQ';
+    const supabaseClient = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+
+    function App() {
+      const [posts, setPosts] = React.useState([]);
+      const [activeTab, setActiveTab] = React.useState('feed');
+      const [userName, setUserName] = React.useState('Vyora Creator');
+      const [caption, setCaption] = React.useState('');
+      const [previewUrl, setPreviewUrl] = React.useState('');
+      const [mediaType, setMediaType] = React.useState('image');
+      const [posting, setPosting] = React.useState(false);
+      const [loading, setLoading] = React.useState(true);
+
+      const fetchPosts = async () => {
+        if (!supabaseClient) return;
+        try {
+          const { data, error } = await supabaseClient
+            .from('posts')
+            .select('*')
+            .order('created_at', { ascending: false });
+          if (!error && data) setPosts(data);
+        } catch (err) {
+          console.error(err);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      React.useEffect(() => { fetchPosts(); }, []);
+
+      // Photo & Video selection without forcing camera
+      const handleFileSelection = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const isVid = file.type.startsWith('video/') || file.name.match(/\.(mp4|mkv|mov|webm|3gp)$/i);
+        setMediaType(isVid ? 'video' : 'image');
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          if (isVid) {
+            setPreviewUrl(event.target.result);
+            setActiveTab('create');
+          } else {
+            const img = new Image();
+            img.src = event.target.result;
+            img.onload = () => {
+              const canvas = document.createElement('canvas');
+              const MAX_WIDTH = 800;
+              const scaleFactor = MAX_WIDTH / img.width;
+              canvas.width = MAX_WIDTH;
+              canvas.height = img.height * scaleFactor;
+              const ctx = canvas.getContext('2d');
+              ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+              setPreviewUrl(canvas.toDataURL('image/jpeg', 0.8));
+              setActiveTab('create');
+            };
+          };
+        };
+        reader.readAsDataURL(file);
+      };
+
+      const handlePublishPost = async () => {
+        if (!previewUrl || !supabaseClient) return;
+        setPosting(true);
+
+        try {
+          const { data: newPost, error } = await supabaseClient
+            .from('posts')
+            .insert([{
+              user_name: userName,
+              user_handle: `@${userName.toLowerCase().replace(/\s+/g, '')}`,
+              caption: caption,
+              image_url: previewUrl,
+              likes: 0
+            }])
+            .select();
+
+          if (!error && newPost) {
+            setPosts([newPost[0], ...posts]);
+            setPreviewUrl('');
+            setCaption('');
+            setActiveTab('feed');
+          }
+        } catch (err) {
+          alert('Error: ' + err.message);
+        } finally {
+          setPosting(false);
+        }
+      };
+
+      const handleLike = async (id, currentLikes) => {
+        const updatedLikes = (currentLikes || 0) + 1;
+        setPosts(posts.map(p => p.id === id ? { ...p, likes: updatedLikes } : p));
+        if (supabaseClient) {
+          await supabaseClient.from('posts').update({ likes: updatedLikes }).eq('id', id);
+        }
+      };
+
+      const isVideoFormat = (url) => {
+        if (!url) return false;
+        return url.startsWith('data:video') || url.match(/\.(mp4|mkv|mov|webm|3gp)$/i);
+      };
+
+      return (
+        <div class="max-w-md mx-auto min-h-screen bg-black text-white flex flex-col justify-between pb-16 relative border-x border-zinc-900">
+          
+          {/* Top Header */}
+          <header class="sticky top-0 z-40 glass-nav flex justify-between items-center px-4 py-3 border-b border-zinc-800/80">
+            <h1 class="text-2xl font-black tracking-widest bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 bg-clip-text text-transparent italic">VYORA</h1>
+            <div class="flex items-center space-x-5 text-lg">
+              <i class="far fa-heart"></i>
+              <i class="fab fa-paper-plane"></i>
+            </div>
+          </header>
+
+          <main class="flex-1 overflow-y-auto hide-scrollbar">
+
+            {/* Instagram Style Stories */}
+            {activeTab === 'feed' && (
+              <div class="flex space-x-4 p-4 overflow-x-auto hide-scrollbar border-b border-zinc-900">
+                <div class="flex flex-col items-center space-y-1 flex-shrink-0">
+                  <div class="relative w-16 h-16 rounded-full p-[2px] bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-600">
+                    <div class="w-full h-full bg-zinc-900 rounded-full flex items-center justify-center border-2 border-black font-bold text-sm">
+                      {userName[0]}
+                    </div>
+                    <span class="absolute bottom-0 right-0 bg-blue-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold border-2 border-black">+</span>
+                  </div>
+                  <span class="text-[11px] text-zinc-400">Your story</span>
+                </div>
+              </div>
+            )}
+
+            {/* FEED TAB */}
+            {activeTab === 'feed' && (
+              <div class="divide-y divide-zinc-900">
+                {loading ? (
+                  <div class="flex justify-center items-center py-20">
+                    <div class="w-8 h-8 border-2 border-pink-500 border-t-transparent rounded-full animate-spin"></div>
+                  </div>
+                ) : posts.length === 0 ? (
+                  <div class="text-center py-24 text-zinc-500 text-sm">No feeds uploaded yet. Tap (+) to create one!</div>
+                ) : (
+                  posts.map(post => (
+                    <div key={post.id} class="pb-3">
+                      <div class="flex items-center justify-between px-3 py-2.5">
+                        <div class="flex items-center space-x-3">
+                          <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-pink-500 to-purple-600 p-[1.5px]">
+                            <div class="w-full h-full bg-black rounded-full flex items-center justify-center text-xs font-bold">
+                              {post.user_name ? post.user_name[0].toUpperCase() : 'U'}
+                            </div>
+                          </div>
+                          <div>
+                            <p class="text-xs font-semibold leading-none">{post.user_name}</p>
+                            <p class="text-[10px] text-zinc-400 leading-tight mt-0.5">Original Audio</p>
+                          </div>
+                        </div>
+                        <i class="fas fa-ellipsis-h text-zinc-400 text-xs"></i>
+                      </div>
+
+                      <div class="w-full bg-zinc-950 flex items-center justify-center max-h-[550px] overflow-hidden">
+                        {isVideoFormat(post.image_url) ? (
+                          <video src={post.image_url} controls loop playsInline class="w-full max-h-[550px] object-cover" />
+                        ) : (
+                          <img src={post.image_url} alt="Post" class="w-full max-h-[550px] object-cover" />
+                        )}
+                      </div>
+
+                      <div class="flex justify-between px-4 py-3 text-xl">
+                        <div class="flex space-x-5">
+                          <button onClick={() => handleLike(post.id, post.likes)} class="active:scale-125 transition-transform text-zinc-200 hover:text-red-500">
+                            <i class="far fa-heart"></i>
+                          </button>
+                          <i class="far fa-comment"></i>
+                          <i class="far fa-paper-plane"></i>
+                        </div>
+                        <i class="far fa-bookmark"></i>
+                      </div>
+
+                      <div class="px-4 text-xs space-y-1">
+                        <p class="font-bold text-zinc-100">{post.likes || 0} likes</p>
+                        {post.caption && (
+                          <p><span class="font-bold mr-2 text-zinc-200">{post.user_name}</span><span class="text-zinc-300">{post.caption}</span></p>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+
+            {/* REELS TAB */}
+            {activeTab === 'reels' && (
+              <div class="space-y-4">
+                {posts.filter(p => isVideoFormat(p.image_url)).length === 0 ? (
+                  <div class="text-center py-32 text-zinc-500 text-sm">No Reels available yet.</div>
+                ) : (
+                  posts.filter(p => isVideoFormat(p.image_url)).map(reel => (
+                    <div key={reel.id} class="relative w-full h-[75vh] bg-black flex items-center justify-center border-b border-zinc-900">
+                      <video src={reel.image_url} controls autoPlay loop muted playsInline class="w-full h-full object-cover" />
+                      
+                      <div class="absolute bottom-6 left-4 right-16 z-10 space-y-2">
+                        <div class="flex items-center space-x-2">
+                          <div class="w-7 h-7 rounded-full bg-white text-black font-bold flex items-center justify-center text-xs">
+                            {reel.user_name[0]}
+                          </div>
+                          <span class="text-xs font-bold">{reel.user_name}</span>
+                        </div>
+                        <p class="text-xs text-zinc-200">{reel.caption}</p>
+                      </div>
+
+                      <div class="absolute right-4 bottom-12 z-10 flex flex-col items-center space-y-5 text-xl">
+                        <button onClick={() => handleLike(reel.id, reel.likes)} class="flex flex-col items-center text-xs">
+                          <i class="fas fa-heart text-red-500"></i>
+                          <span class="mt-1 font-semibold">{reel.likes || 0}</span>
+                        </button>
+                        <i class="fas fa-comment"></i>
+                        <i class="fas fa-paper-plane"></i>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+
+            {/* CREATE / UPLOAD SCREEN */}
+            {activeTab === 'create' && (
+              <div class="p-4 space-y-4">
+                <div class="flex justify-between items-center border-b border-zinc-800 pb-3">
+                  <button onClick={() => setActiveTab('feed')} class="text-xs text-zinc-400">Cancel</button>
+                  <h2 class="font-bold text-sm">New Post</h2>
+                  <button 
+                    onClick={handlePublishPost} 
+                    disabled={posting} 
+                    class="text-blue-500 font-bold text-xs disabled:opacity-50"
+                  >
+                    {posting ? 'Posting...' : 'Share'}
+                  </button>
+                </div>
+
+                <div class="flex space-x-4">
+                  <div class="w-24 h-24 bg-zinc-900 rounded-lg overflow-hidden flex-shrink-0 border border-zinc-800">
+                    {mediaType === 'video' ? (
+                      <video src={previewUrl} class="w-full h-full object-cover" />
+                    ) : (
+                      <img src={previewUrl} alt="Preview" class="w-full h-full object-cover" />
+                    )}
+                  </div>
+                  <textarea
+                    class="w-full bg-transparent text-xs text-white placeholder-zinc-500 focus:outline-none resize-none pt-1"
+                    placeholder="Write a caption..."
+                    rows="5"
+                    value={caption}
+                    onChange={(e) => setCaption(e.target.value)}
+                  ></textarea>
+                </div>
+              </div>
+            )}
+
+            {/* PROFILE TAB */}
+            {activeTab === 'profile' && (
+              <div class="p-4 space-y-6">
+                <div class="flex justify-between items-center">
+                  <h2 class="font-bold text-base">{userName}</h2>
+                  <i class="fas fa-bars text-lg"></i>
+                </div>
+                <div class="flex items-center space-x-6">
+                  <div class="w-20 h-20 rounded-full bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-600 p-[2px]">
+                    <div class="w-full h-full bg-black rounded-full flex items-center justify-center font-bold text-xl">
+                      {userName[0]}
+                    </div>
+                  </div>
+                  <div class="flex space-x-6 text-center text-xs flex-1 justify-around">
+                    <div>
+                      <p class="font-bold text-sm">{posts.length}</p>
+                      <p class="text-zinc-500">Posts</p>
+                    </div>
+                    <div>
+                      <p class="font-bold text-sm">0</p>
+                      <p class="text-zinc-500">Followers</p>
+                    </div>
+                    <div>
+                      <p class="font-bold text-sm">0</p>
+                      <p class="text-zinc-500">Following</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+          </main>
+
+          {/* Bottom Navigation */}
+          <nav class="fixed bottom-0 left-0 right-0 max-w-md mx-auto glass-nav border-t border-zinc-800/80 flex justify-around items-center py-3 z-50 text-xl">
+            <button onClick={() => setActiveTab('feed')} class={activeTab === 'feed' ? 'text-white' : 'text-zinc-500'}><i class="fas fa-home"></i></button>
+            <button onClick={() => setActiveTab('reels')} class={activeTab === 'reels' ? 'text-white' : 'text-zinc-500'}><i class="fas fa-film"></i></button>
+
+            {/* Opens Gallery (Not Camera) */}
+            <label class="cursor-pointer bg-gradient-to-tr from-pink-500 via-purple-500 to-indigo-500 w-10 h-10 rounded-xl flex items-center justify-center text-white active:scale-90 transition-transform shadow-lg">
+              <i class="fas fa-plus text-sm"></i>
+              <input 
+                type="file" 
+                accept="image/*,video/*" 
+                class="hidden" 
+                onChange={handleFileSelection} 
+              />
+            </label>
+
+            <button onClick={() => setActiveTab('feed')} class="text-zinc-500"><i class="far fa-heart"></i></button>
+            <button onClick={() => setActiveTab('profile')} class={activeTab === 'profile' ? 'text-white' : 'text-zinc-500'}><i class="far fa-user"></i></button>
+          </nav>
+
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
