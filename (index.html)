@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Instagram Clone</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        body { background-color: #000; color: #fff; display: flex; justify-content: center; }
+        .app-container { width: 100%; max-width: 470px; background-color: #000; min-height: 100vh; padding-bottom: 60px; border-left: 1px solid #262626; border-right: 1px solid #262626; }
+        
+        /* Header */
+        .header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid #262626; position: sticky; top: 0; background: #000; z-index: 10; }
+        .logo { font-size: 22px; font-weight: bold; font-style: italic; font-family: 'Grand Hotel', cursive, sans-serif; }
+        .header-icons i { font-size: 20px; margin-left: 16px; cursor: pointer; }
+
+        /* Stories */
+        .stories-container { display: flex; overflow-x: auto; padding: 10px; border-bottom: 1px solid #262626; scrollbar-width: none; }
+        .stories-container::-webkit-scrollbar { display: none; }
+        .story { display: flex; flex-direction: column; align-items: center; margin-right: 12px; cursor: pointer; }
+        .story-img-bg { width: 68px; height: 68px; border-radius: 50%; background: linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888); display: flex; justify-content: center; align-items: center; }
+        .story img { width: 62px; height: 62px; border-radius: 50%; border: 2px solid #000; object-fit: cover; }
+        .story span { font-size: 11px; margin-top: 4px; color: #ccc; }
+
+        /* Post */
+        .post { border-bottom: 1px solid #262626; margin-bottom: 10px; }
+        .post-header { display: flex; align-items: center; padding: 10px; }
+        .post-header img { width: 32px; height: 32px; border-radius: 50%; margin-right: 10px; object-fit: cover; }
+        .post-header .username { font-weight: 600; font-size: 14px; }
+        .post-img img { width: 100%; display: block; max-height: 500px; object-fit: cover; }
+        .post-actions { display: flex; justify-content: space-between; padding: 10px 12px; font-size: 20px; }
+        .post-actions i { margin-right: 14px; cursor: pointer; }
+        .post-actions i.fa-heart.active { color: #ed4956; }
+        .likes { padding: 0 12px; font-weight: 600; font-size: 14px; margin-bottom: 6px; }
+        .caption { padding: 0 12px 10px; font-size: 14px; }
+        .caption span { font-weight: 600; margin-right: 6px; }
+
+        /* Bottom Nav */
+        .bottom-nav { position: fixed; bottom: 0; width: 100%; max-width: 470px; background: #000; border-top: 1px solid #262626; display: flex; justify-content: space-around; padding: 12px 0; font-size: 22px; }
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    <!-- Header -->
+    <div class="header">
+        <div class="logo">Instagram</div>
+        <div class="header-icons">
+            <i class="far fa-heart"></i>
+            <i class="fab fa-facebook-messenger"></i>
+        </div>
+    </div>
+
+    <!-- Stories -->
+    <div class="stories-container">
+        <div class="story">
+            <div class="story-img-bg"><img src="https://via.placeholder.com/60" alt="User"></div>
+            <span>Your story</span>
+        </div>
+        <div class="story">
+            <div class="story-img-bg"><img src="https://via.placeholder.com/60" alt="User"></div>
+            <span>user_1</span>
+        </div>
+    </div>
+
+    <!-- Feed Post -->
+    <div class="post">
+        <div class="post-header">
+            <img src="https://via.placeholder.com/32" alt="Profile">
+            <span class="username">my_account</span>
+        </div>
+        <div class="post-img">
+            <img src="https://via.placeholder.com/450" alt="Post Image">
+        </div>
+        <div class="post-actions">
+            <div>
+                <i class="far fa-heart" onclick="toggleLike(this)"></i>
+                <i class="far fa-comment"></i>
+                <i class="far fa-paper-plane"></i>
+            </div>
+            <i class="far fa-bookmark"></i>
+        </div>
+        <div class="likes"><span id="like-count">100</span> likes</div>
+        <div class="caption"><span>my_account</span> Beautiful view!</div>
+    </div>
+
+    <!-- Bottom Navigation -->
+    <div class="bottom-nav">
+        <i class="fas fa-home"></i>
+        <i class="fas fa-search"></i>
+        <i class="far fa-plus-square"></i>
+        <i class="fas fa-film"></i>
+        <i class="far fa-user-circle"></i>
+    </div>
+</div>
+
+<script>
+    function toggleLike(element) {
+        element.classList.toggle('fas');
+        element.classList.toggle('far');
+        element.classList.toggle('active');
+        let likeCount = document.getElementById('like-count');
+        let currentLikes = parseInt(likeCount.innerText);
+        if (element.classList.contains('active')) {
+            likeCount.innerText = currentLikes + 1;
+        } else {
+            likeCount.innerText = currentLikes - 1;
+        }
+    }
+</script>
+
+</body>
+</html>
